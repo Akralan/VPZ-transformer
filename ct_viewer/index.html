@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CT Viewer - Niivue</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .file-input-wrapper {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .file-input-label {
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .file-input-label:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-name {
+            color: #495057;
+            font-weight: 500;
+            padding: 10px 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #dee2e6;
+        }
+
+        .viewer-container {
+            padding: 30px;
+            background: #000;
+        }
+
+        #viewer {
+            width: 100%;
+            height: 600px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .info {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            color: #495057;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🩻 CT Viewer</h1>
+            <p>Visualiseur NIfTI avec Niivue</p>
+        </div>
+
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <label for="fileInput" class="file-input-label">
+                    📁 Sélectionner un fichier .nii.gz
+                </label>
+                <input type="file" id="fileInput" accept=".nii,.nii.gz" />
+                <span class="file-name" id="fileName">Aucun fichier sélectionné</span>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Chargement de l'image...</p>
+        </div>
+
+        <div class="viewer-container">
+            <canvas id="viewer"></canvas>
+        </div>
+
+        <div class="info">
+            <p>💡 Utilisez la molette pour zoomer, cliquez-glissez pour naviguer dans les coupes</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@niivue/niivue@latest/dist/niivue.umd.js"></script>
+    <script>
+        let nv;
+
+        // Initialiser Niivue
+        window.addEventListener('DOMContentLoaded', () => {
+            nv = new niivue.Niivue({
+                show3Dcrosshair: true,
+                backColor: [0, 0, 0, 1],
+                crosshairColor: [1, 0, 0, 1],
+                textHeight: 0.05,
+                colorbarHeight: 0.05
+            });
+            nv.attachToCanvas(document.getElementById('viewer'));
+        });
+
+        // Gérer la sélection de fichier
+        document.getElementById('fileInput').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Afficher le nom du fichier
+            document.getElementById('fileName').textContent = file.name;
+
+            // Afficher le loading
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                console.log('📂 Fichier sélectionné:', file.name, 'Taille:', file.size, 'bytes');
+                
+                // Créer une URL pour le fichier
+                const fileURL = URL.createObjectURL(file);
+                console.log('🔗 URL créée:', fileURL);
+
+                // Charger le volume avec le nom du fichier pour la détection d'extension
+                const volumeList = [
+                    {
+                        url: fileURL,
+                        name: file.name,  // Ajouter le nom pour la détection d'extension
+                        colorMap: 'gray',
+                        opacity: 1.0
+                    }
+                ];
+
+                console.log('⏳ Chargement du volume...');
+                await nv.loadVolumes(volumeList);
+                console.log('✅ Volumes chargés:', nv.volumes.length);
+                
+                if (nv.volumes.length > 0) {
+                    const vol = nv.volumes[0];
+                    console.log('📊 Dimensions:', vol.dims);
+                    console.log('📊 Datatype:', vol.hdr.datatypeCode);
+                    console.log('📊 Min/Max:', vol.cal_min, '/', vol.cal_max);
+                }
+
+                // Libérer l'URL après chargement
+                URL.revokeObjectURL(fileURL);
+
+                console.log('✅ Image chargée avec succès');
+            } catch (error) {
+                console.error('❌ Erreur complète:', error);
+                console.error('❌ Message:', error.message);
+                console.error('❌ Stack:', error.stack);
+                alert(`Erreur lors du chargement du fichier:\n${error.message}\n\nVérifiez la console (F12) pour plus de détails.`);
+            } finally {
+                // Masquer le loading
+                document.getElementById('loading').classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
